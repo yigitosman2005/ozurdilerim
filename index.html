@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beni Affediyor musun?</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+/* Layout: tek ekran, ortada el yazısı bir not; altta iki düğme. Tek görünüm (gece mavisi + gül). */
+:root {
+  --bg: #1d1730;
+  --bg2: #2c2148;
+  --paper: #fff4f6;
+  --ink: #3a2340;
+  --rose: #ff5c8a;
+  --rose-deep: #d63a6a;
+  --muted: #8a7393;
+  --display: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
+  --body: "Nunito", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0;
+  background: radial-gradient(ellipse at 50% 30%, var(--bg2), var(--bg) 70%);
+  background-color: var(--bg);
+  color: var(--paper);
+  font-family: var(--body);
+  overflow: hidden;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+#hearts { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.stage {
+  position: relative; z-index: 1;
+  height: 100%;
+  display: grid; place-items: center;
+}
+.note {
+  background: var(--paper);
+  color: var(--ink);
+  width: min(460px, 100%);
+  box-sizing: border-box;
+  padding: 36px 28px 32px;
+  border-radius: 6px;
+  transform: rotate(-1.5deg);
+  box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  text-align: center;
+  display: grid; gap: 18px;
+  background-image: repeating-linear-gradient(transparent 0 33px, rgba(214,58,106,.13) 33px 34px);
+}
+.note .face { font-size: 56px; line-height: 1; }
+.note h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(34px, 8vw, 46px);
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+.note p { margin: 0; color: var(--muted); font-size: 15px; }
+.buttons {
+  display: flex; gap: 16px; justify-content: center; align-items: center;
+  flex-wrap: wrap; min-height: 80px;
+}
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  font-family: var(--body); font-weight: 800;
+  border: none; border-radius: 999px; cursor: pointer;
+  transition: transform .15s ease, font-size .25s ease, padding .25s ease, background .2s;
+}
+button:focus-visible { outline: 3px solid var(--rose); outline-offset: 3px; }
+#yes {
+  max-width: 100%; white-space: nowrap;
+  background: var(--rose); color: #fff;
+  font-size: 20px; padding: 12px 30px;
+  box-shadow: 0 6px 0 var(--rose-deep);
+}
+#yes:hover { transform: translateY(-2px) scale(1.04); }
+#no {
+  background: #e9dde6; color: var(--ink);
+  font-size: 20px; padding: 12px 30px;
+}
+#no.flying { position: fixed; z-index: 5; margin: 0; transition: left .25s ease, top .25s ease; }
+.done .face { animation: beat 1s ease-in-out infinite; }
+@keyframes beat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+@media (prefers-reduced-motion: reduce) {
+  .done .face { animation: none; }
+  button, #no.flying { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="hearts"></canvas>
+<div class="stage">
+  <div class="note" id="note">
+    <div class="face" id="face">🥺</div>
+    <h1 id="msg">Özür dilerim, yaptığım yanlıştı. Beni affediyor musun?</h1>
+    <p id="sub">Lütfen dikkatli seç…</p>
+    <div class="buttons" id="buttons">
+      <button id="yes" type="button">Evet 💖</button>
+      <button id="no" type="button">Hayır</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const yes = document.getElementById('yes');
+const no = document.getElementById('no');
+const sub = document.getElementById('sub');
+const noTexts = ["Hayır", "Emin misin?", "Bir daha düşün 🥺", "Gerçekten mi?", "Kalbimi kırıyorsun 💔", "Son şans!", "Lütfen…", "Evet'e bas işte 😭"];
+let tries = 0;
+let yesSize = 20, noSize = 20;
+
+function dodge() {
+  const r = no.getBoundingClientRect();
+  if (!no.classList.contains('flying')) {
+    document.body.appendChild(no);  /* eğik kartın dışına al, yoksa ekrandan taşar */
+    no.style.left = r.left + 'px'; no.style.top = r.top + 'px';
+    no.classList.add('flying');
+    no.getBoundingClientRect();
+  }
+  const pad = 16;
+  const maxX = window.innerWidth - r.width - pad;
+  const maxY = window.innerHeight - r.height - pad;
+  let x, y, guard = 0;
+  do {
+    x = pad + Math.random() * Math.max(0, maxX - pad);
+    y = pad + Math.random() * Math.max(0, maxY - pad);
+    guard++;
+  } while (Math.hypot(x - r.left, y - r.top) < 150 && guard < 20);
+  no.style.left = x + 'px'; no.style.top = y + 'px';
+}
+
+function keepInside() {
+  const r = no.getBoundingClientRect();
+  no.style.left = Math.min(Math.max(16, r.left), innerWidth - r.width - 16) + 'px';
+  no.style.top = Math.min(Math.max(16, r.top), innerHeight - r.height - 16) + 'px';
+}
+
+function pressNo() {
+  tries++;
+  no.textContent = noTexts[Math.min(tries, noTexts.length - 1)];
+  yesSize = Math.min(yesSize + 8, 90, innerWidth / 8);
+  noSize = Math.max(noSize - 2.5, 8);
+  yes.style.fontSize = yesSize + 'px';
+  yes.style.padding = (yesSize * 0.4) + 'px ' + (yesSize * 0.9) + 'px';
+  no.style.fontSize = noSize + 'px';
+  no.style.padding = (noSize * 0.5) + 'px ' + (noSize * 1.2) + 'px';
+  sub.textContent = tries > 3 ? "Evet düğmesi sana bir şey söylüyor gibi 👀" : "Yanlış düğme galiba…";
+  if (noSize <= 8) no.hidden = true;
+}
+
+let lastHit = 0;
+function hit(e) {
+  if (e && e.cancelable) e.preventDefault();
+  const now = Date.now();
+  if (now - lastHit < 250) return;  /* aynı dokunuş iki kez sayılmasın */
+  lastHit = now;
+  pressNo();
+  if (!no.hidden) dodge();
+}
+/* bilgisayar: fare üstüne gelince kaçar */
+no.addEventListener('mouseenter', hit);
+/* telefon ve tablet: parmak değince kaçar */
+no.addEventListener('touchstart', hit, { passive: false });
+no.addEventListener('pointerdown', hit);
+no.addEventListener('click', hit);
+window.addEventListener('resize', () => { if (no.classList.contains('flying')) dodge(); });
+
+yes.addEventListener('click', () => {
+  document.getElementById('note').classList.add('done');
+  document.getElementById('face').textContent = '🥰';
+  document.getElementById('msg').textContent = 'Biliyordum! Seni çok seviyorum 💞';
+  sub.textContent = 'Bir daha üzmeyeceğim, söz.';
+  document.getElementById('buttons').hidden = true;
+  no.hidden = true;
+  burst();
+});
+
+/* kalp yağmuru */
+const cv = document.getElementById('hearts'), ctx = cv.getContext('2d');
+let W, H, parts = [];
+function size() { W = cv.width = innerWidth; H = cv.height = innerHeight; }
+size(); addEventListener('resize', size);
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function spawn(n, fromBottom) {
+  for (let i = 0; i < n; i++) parts.push({
+    x: Math.random() * W, y: fromBottom ? H + 20 : Math.random() * H,
+    s: 8 + Math.random() * 18, v: 0.4 + Math.random() * 1.2,
+    w: Math.random() * Math.PI * 2, a: 0.25 + Math.random() * 0.5
+  });
+}
+function heart(x, y, s, a) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s / 16, s / 16);
+  ctx.fillStyle = `rgba(255,92,138,${a})`;
+  ctx.beginPath(); ctx.moveTo(0, 5);
+  ctx.bezierCurveTo(-8, -3, -6, -11, 0, -6);
+  ctx.bezierCurveTo(6, -11, 8, -3, 0, 5);
+  ctx.fill(); ctx.restore();
+}
+spawn(18, false);
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+  parts.forEach(p => {
+    p.y -= p.v; p.w += 0.02; p.x += Math.sin(p.w) * 0.4;
+    if (p.y < -30) { p.y = H + 20; p.x = Math.random() * W; }
+    heart(p.x, p.y, p.s, p.a);
+  });
+  requestAnimationFrame(loop);
+}
+function burst() { spawn(80, true); parts.forEach(p => { p.v *= 2; p.a = Math.min(1, p.a + .3); }); }
+if (!reduce) loop(); else parts.forEach(p => heart(p.x, p.y, p.s, p.a));
+</script>
+</body>
+</html>
